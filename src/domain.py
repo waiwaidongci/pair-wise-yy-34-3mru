@@ -13,10 +13,10 @@ class ConflictError(DomainError): kind=ErrorKind.CONFLICT
 SEVERITIES=['minor', 'moderate', 'serious', 'fatal']; STATES=['reported', 'investigating', 'corrective_action', 'verification', 'closed']; ROLES=['reporter', 'investigator', 'safety_manager', 'viewer']
 @dataclass(frozen=True)
 class Item:
-    id:int; title:str; description:str; severity:str; quantity:float; threshold:float; status:str; version:int; external_ref:Optional[str]; created_by:str; created_at:str; updated_at:str
+    id:int; title:str; description:str; severity:str; quantity:float; threshold:float; status:str; version:int; external_ref:Optional[str]; created_by:str; created_at:str; updated_at:str; scene:Optional[str]=None; shift:Optional[str]=None; injury:Optional[str]=None
 @dataclass(frozen=True)
 class Record:
-    id:int; item_id:int; kind:str; detail:str; status:str; external_ref:Optional[str]; created_by:str; created_at:str
+    id:int; item_id:int; kind:str; detail:str; status:str; external_ref:Optional[str]; created_by:str; created_at:str; measure_scope:Optional[str]=None; verified_status:Optional[str]=None; reopen_reason:Optional[str]=None
 @dataclass(frozen=True)
 class AuditEntry:
     id:int; action:str; entity_type:str; entity_id:int; actor:str; detail:Dict[str,Any]; previous_hash:str; entry_hash:str; created_at:str
@@ -36,3 +36,10 @@ def require_number(value,field,minimum=0.0):
     return number
 def ensure_role(role,allowed):
     if role not in allowed: raise PermissionDenied("当前角色无权执行该操作")
+def require_int(value,field,minimum=1):
+    if isinstance(value,bool) or not isinstance(value,int): raise ValidationError(f"{field}必须是整数")
+    if value<minimum: raise ValidationError(f"{field}不能小于{minimum}")
+    return value
+def optional_text(value,field,max_length=200):
+    if value is None: return None
+    return require_text(value,field,max_length)

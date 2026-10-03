@@ -84,6 +84,29 @@ def make_handler(service: Service, static_dir: str):
                     actor, role = self._identity()
                     del actor
                     self._json(200, {"items": service.list_items(role)})
+                elif path == "/api/batches":
+                    actor, role = self._identity()
+                    del actor
+                    self._json(200, {"batches": service.list_batches(role)})
+                elif path.startswith("/api/batches/") and path.endswith("/recomputations"):
+                    batch_id = int(path.split("/")[3])
+                    actor, role = self._identity()
+                    del actor
+                    self._json(200, {
+                        "recomputations": service.batch_detail(batch_id, role)["recomputations"]
+                    })
+                elif path.startswith("/api/batches/") and path.endswith("/measure-reviews"):
+                    batch_id = int(path.split("/")[3])
+                    actor, role = self._identity()
+                    del actor
+                    self._json(200, {
+                        "measure_reviews": service.batch_detail(batch_id, role)["measure_reviews"]
+                    })
+                elif path.startswith("/api/batches/"):
+                    batch_id = int(path.rsplit("/", 1)[-1])
+                    actor, role = self._identity()
+                    del actor
+                    self._json(200, service.batch_detail(batch_id, role))
                 elif path.startswith("/api/items/") and path.endswith("/records"):
                     item_id = int(path.split("/")[3])
                     actor, role = self._identity()
@@ -96,8 +119,11 @@ def make_handler(service: Service, static_dir: str):
                     self._json(200, service.get_item(item_id, role))
                 elif path == "/api/audit":
                     actor, role = self._identity()
+                    query = parse_qs(urlparse(self.path).query)
+                    entity_id = int(query["entity_id"][0]) if "entity_id" in query else None
+                    entity_type = query.get("entity_type", [None])[0]
                     del actor
-                    self._json(200, {"events": service.audit(role)})
+                    self._json(200, {"events": service.audit(role, entity_id, entity_type)})
                 else:
                     self._json(404, {"error": "not_found"})
             except Exception as exc:
@@ -110,6 +136,17 @@ def make_handler(service: Service, static_dir: str):
                 body = self._body()
                 if path == "/api/items":
                     self._json(201, service.create_item(body, actor, role))
+                elif path == "/api/batches":
+                    self._json(201, service.create_batch(body, actor, role))
+                elif path.startswith("/api/batches/") and path.endswith("/members"):
+                    batch_id = int(path.split("/")[3])
+                    result = service.merge_item(batch_id, body, actor, role)
+                    # 并入成功(含审计失败可恢复)201；重复/恢复200，携带当前批次版本
+                    status = 201 if result.get("accepted") else 200
+                    self._json(status, result)
+                elif path.startswith("/api/batches/") and path.endswith("/recover"):
+                    batch_id = int(path.split("/")[3])
+                    self._json(200, service.recover_merge(batch_id, body, actor, role))
                 elif path.startswith("/api/items/") and path.endswith("/records"):
                     item_id = int(path.split("/")[3])
                     self._json(201, service.add_record(item_id, body, actor, role))
@@ -119,6 +156,16 @@ def make_handler(service: Service, static_dir: str):
                     expected = body.get("expected_version")
                     self._json(200, service.transition(
                         item_id, target, expected, actor, role))
+                elif "/records/" in path and path.endswith("/verify"):
+                    parts = path.split("/")
+                    item_id, record_id = int(parts[3]), int(parts[5])
+                    self._json(200, service.verify_measure(
+                        item_id, record_id, body, actor, role))
+                elif "/records/" in path and path.endswith("/reopen"):
+                    parts = path.split("/")
+                    item_id, record_id = int(parts[3]), int(parts[5])
+                    self._json(200, service.reopen_measure(
+                        item_id, record_id, body, actor, role))
                 else:
                     self._json(404, {"error": "not_found"})
             except Exception as exc:
