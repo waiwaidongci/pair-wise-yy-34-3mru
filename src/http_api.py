@@ -94,6 +94,15 @@ def make_handler(service: Service, static_dir: str):
                     actor, role = self._identity()
                     del actor
                     self._json(200, service.get_item(item_id, role))
+                elif path == "/api/batches":
+                    actor, role = self._identity()
+                    del actor
+                    self._json(200, {"batches": service.list_batches(role)})
+                elif path.startswith("/api/batches/"):
+                    batch_id = int(path.split("/")[3])
+                    actor, role = self._identity()
+                    del actor
+                    self._json(200, service.get_batch(batch_id, role))
                 elif path == "/api/audit":
                     actor, role = self._identity()
                     del actor
@@ -119,6 +128,10 @@ def make_handler(service: Service, static_dir: str):
                     expected = body.get("expected_version")
                     self._json(200, service.transition(
                         item_id, target, expected, actor, role))
+                elif path.startswith("/api/batches/") and path.endswith("/merge"):
+                    batch_id = int(path.split("/")[3])
+                    item_id = body.get("item_id")
+                    self._json(200, service.merge_item(batch_id, item_id, actor, role))
                 else:
                     self._json(404, {"error": "not_found"})
             except Exception as exc:
